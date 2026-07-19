@@ -314,6 +314,45 @@ export default function ZynoraPrime() {
     };
   }, []);
 
+  // ---- Install to home screen ----
+  // Chrome/Android fires "beforeinstallprompt" and lets us trigger the
+  // native install dialog on demand. Safari/iOS never fires this event
+  // at all — there's no programmatic install API there, so instead we
+  // detect iOS and show manual "Share → Add to Home Screen" instructions.
+  const [installPromptEvent, setInstallPromptEvent] = useState(null);
+  const [isInstalled, setIsInstalled] = useState(
+    typeof window !== "undefined" &&
+      (window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true)
+  );
+  const isIOS =
+    typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+  useEffect(() => {
+    function handleBeforeInstallPrompt(e) {
+      e.preventDefault(); // stop the browser's default mini-banner; we show our own button instead
+      setInstallPromptEvent(e);
+    }
+    function handleInstalled() {
+      setIsInstalled(true);
+      setInstallPromptEvent(null);
+    }
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleInstalled);
+    };
+  }, []);
+
+  async function handleInstallClick() {
+    if (!installPromptEvent) return;
+    installPromptEvent.prompt();
+    await installPromptEvent.userChoice;
+    // Whether they accepted or dismissed, this specific prompt event
+    // can only be used once — clear it either way.
+    setInstallPromptEvent(null);
+  }
+
   // When the connection comes back after an offline-caused error, retry
   // automatically rather than making the person notice and tap Retry
   // themselves. autoRetriedErrorRef prevents retrying the same error
@@ -1026,6 +1065,10 @@ export default function ZynoraPrime() {
           setAuthScreenOpen(true);
         }}
         onLogOut={handleLogOut}
+        isInstalled={isInstalled}
+        isIOS={isIOS}
+        canInstall={!!installPromptEvent}
+        onInstallClick={handleInstallClick}
       />
       <AuthScreen
         styles={styles}
@@ -1976,6 +2019,10 @@ function SettingsPanel({
   session,
   onOpenAuth,
   onLogOut,
+  isInstalled,
+  isIOS,
+  canInstall,
+  onInstallClick,
 }) {
   const [confirmingClear, setConfirmingClear] = useState(false);
 
@@ -2035,6 +2082,31 @@ function SettingsPanel({
             </>
           )}
         </div>
+
+        {/* Install to home screen — hidden entirely once already
+            installed, since there's nothing useful to show then. */}
+        {!isInstalled && (canInstall || isIOS) && (
+          <div style={styles.panelSection}>
+            <div style={styles.panelLabel}>Install app</div>
+            {canInstall ? (
+              <>
+                <div style={{ fontSize: 12.5, color: styles.palette.textMuted, marginBottom: 6 }}>
+                  Add Zynora Prime to your home screen for quick access, like a regular app.
+                </div>
+                <button style={styles.newChatButton} onClick={onInstallClick}>
+                  Add to Home Screen
+                </button>
+              </>
+            ) : (
+              // iOS has no programmatic install prompt — the only way is
+              // the manual Share sheet, so we give clear step-by-step text.
+              <div style={{ fontSize: 12.5, color: styles.palette.textMuted, lineHeight: 1.6 }}>
+                To install: tap the <strong>Share</strong> icon in Safari's toolbar, then
+                <strong> "Add to Home Screen."</strong>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Theme */}
         <div style={styles.panelSection}>
