@@ -1,0 +1,36 @@
+{
+  "name": "Zynora Prime",
+  "short_name": "Zynora Prime",
+  "description": "AI chat assistant built for real-world mobile connections — streaming replies, offline resilience, and a lite mode for slower or costlier data.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0E1A",
+  "theme_color": "#0B0E1A",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
