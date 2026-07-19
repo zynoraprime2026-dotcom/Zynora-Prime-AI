@@ -1,39 +1,49 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./App.jsx";
-
 // ============================================================
-// window.storage shim
-// App.jsx was originally built to run inside a Claude.ai artifact,
-// which provides a built-in `window.storage` API (get/set/delete/list)
-// backed by Anthropic's servers. That API doesn't exist in a normal
-// deployed website, so this shim recreates the exact same interface
-// using the browser's built-in localStorage instead. Because the
-// shapes match, App.jsx didn't need any of its ~40 window.storage
-// call sites changed — this one shim is the entire adaptation.
+// Service worker — app-shell caching for offline/installed use.
+//
+// Deliberately conservative:
+//  - Only handles GET requests to our own origin. Everything else
+//    (POST requests, /api/chat, and cross-origin calls like Supabase)
+//    passes straight through untouched — auth and chat data must
+//    never be served from a stale cache.
+//  - Network-first, not cache-first: always tries the real network
+//    first and only falls back to the cache when offline. This means
+//    a new deployment is never blocked by an old cached version —
+//    the classic PWA bug where users get stuck on stale code.
 // ============================================================
-window.storage = {
-  async get(key) {
-    const raw = localStorage.getItem(key);
-    if (raw === null) return null;
-    return { key, value: raw };
-  },
-  async set(key, value) {
-    localStorage.setItem(key, value);
-    return { key, value };
-  },
-  async delete(key) {
-    localStorage.removeItem(key);
-    return { key, deleted: true };
-  },
-  async list(prefix) {
-    const keys = Object.keys(localStorage).filter((k) => !prefix || k.startsWith(prefix));
-    return { keys };
-  },
-};
 
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+const CACHE_NAME = "zynora-prime-v1";
+const PRECACHE_URLS = ["/", "/manifest.json", "/icon-192.png", "/icon-512.png"];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS)));
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
+  );
+  self.clients.claim();
+});
+
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  if (request.method !== "GET") return;
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith("/api/")) return;
+
+  event.respondWith(
+    fetch(request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        return response;
+      })
+      .catch(() => caches.match(request).then((cached) => cached || caches.match("/")))
+  );
+});
