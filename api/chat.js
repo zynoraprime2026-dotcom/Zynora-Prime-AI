@@ -26,11 +26,19 @@ export default async function handler(req, res) {
 
     // Gemini expects roles "user" / "model" (not "assistant"), and the
     // system prompt as a separate field rather than inline in the
-    // message list.
-    const contents = (messages || []).map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
-    }));
+    // message list. A message can include both an image and text in
+    // the same "parts" array — that's how Gemini's multimodal input works.
+    const contents = (messages || []).map((m) => {
+      const parts = [];
+      if (m.imageData) {
+        parts.push({ inlineData: { mimeType: m.imageMimeType || "image/jpeg", data: m.imageData } });
+      }
+      parts.push({ text: m.content });
+      return {
+        role: m.role === "assistant" ? "model" : "user",
+        parts,
+      };
+    });
 
     const geminiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
