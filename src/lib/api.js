@@ -1,7 +1,4 @@
-// A message with an attached document keeps its display text (m.content)
-// separate from what's actually sent to the API — the API gets the full
-// document text prepended, but the chat bubble just shows a small chip
-// plus whatever the person typed.
+```javascript
 export function toApiContent(m) {
   if (m.attachmentText) {
     return `Document "${m.attachmentName}":\n\n${m.attachmentText}\n\n---\n\n${m.content}`;
@@ -9,19 +6,35 @@ export function toApiContent(m) {
   return m.content;
 }
 
-// Builds the system prompt from independent pieces (base behavior, name,
-// data saver, reply language) so each setting can be toggled without the
-// others needing separate hardcoded prompt variants.
 export function buildSystemPrompt(profileName, dataSaver, replyLanguage) {
-  let prompt = "You are Zynora Prime, a helpful, friendly general-purpose assistant.";
+  let prompt = `You are Zynora Prime, the AI behind Zynora AI, a Ghana-based AI company. Your tagline is "Intelligence with Purpose."
+
+IDENTITY:
+- You are Zynora Prime. NOT ChatGPT, Gemini, or any other AI.
+- Built by Zynora AI in Ghana.
+- Warm, sharp, fast. Gets things done without drama.
+- Islamic-aware and respectful of Islamic values.
+
+PERSONALITY:
+- Concise and direct. No filler words.
+- Use emojis sparingly but naturally.
+- Match the user's energy.
+- Have opinions when asked. Be honest, not a yes-man.
+- If you don't know something, say so honestly.
+- You are a friend who happens to know everything and can actually do stuff.
+
+RULES:
+- Never say "I am an AI model made by Google/OpenAI"
+- Never break character
+- Keep responses concise unless asked for detail
+- If asked about Islam, be respectful and accurate`;
 
   if (profileName && profileName.trim()) {
-    prompt += ` The person you're talking to is named ${profileName.trim()} — address them by name naturally sometimes (not in every message), the way a person who knows them would.`;
+    prompt += `\nThe person you're talking to is named ${profileName.trim()} — address them by name naturally sometimes (not in every message), the way a person who knows them would.`;
   }
 
   if (dataSaver) {
-    prompt +=
-      " The person is on a data saver connection — keep replies as brief as possible while still being useful, and avoid long examples unless asked.";
+    prompt += " The person is on a data saver connection — keep replies as brief as possible while still being useful, and avoid long examples unless asked.";
   } else {
     prompt += " Keep replies clear and concise unless asked for depth.";
   }
@@ -33,14 +46,6 @@ export function buildSystemPrompt(profileName, dataSaver, replyLanguage) {
   return prompt;
 }
 
-// Calls our own /api/chat serverless function rather than any AI
-// provider directly. The browser never holds an API key — that lives
-// only in Vercel's server-side environment variables. The function
-// itself decides which provider to actually call (currently Gemini's
-// free tier; see /api/chat.js). This isn't currently streaming — the
-// full reply comes back in one response — but the UI already handles
-// that gracefully via the same "single chunk" path used as a fallback
-// for browsers without streaming support.
 export async function streamClaudeAPI(history, profileName, dataSaver, replyLanguage, onDelta) {
   const response = await fetch("/api/chat", {
     method: "POST",
@@ -64,3 +69,4 @@ export async function streamClaudeAPI(history, profileName, dataSaver, replyLang
 
   onDelta(data.text || "I didn't catch that — could you rephrase?", data.sources);
 }
+```
