@@ -11,7 +11,7 @@ export function Header({ styles, isOnline, onOpenSidebar, onOpenSettings }) {
           <div style={styles.brand}>
             ZYNORA <span style={{ color: styles.palette.accent }}>PRIME</span>
           </div>
-          <div style={styles.tagline}>Intelligent with Purpose</div>
+          <div style={styles.tagline}>The Intelligence with Purpose</div>
         </div>
         {!isOnline && (
           <span style={styles.offlineBadge} title="No internet connection">
