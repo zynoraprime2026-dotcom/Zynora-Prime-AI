@@ -18,7 +18,7 @@ export function ChatArea({ styles, messages, status, error, onRegenerate, onEdit
     <div ref={scrollRef} className="zp-chat" style={styles.chatArea}>
       {isEmpty && !error && (
         <div style={{ ...styles.bubble, ...styles.assistantBubble }}>
-          Hey{profileName ? ` ${profileName}` : ""}! I'm Zynora Prime — intelligent with purpose. Ask me anything.
+          Hey{profileName ? ` ${profileName}` : ""}! I'm Zynora Prime — the intelligence with purpose. Ask me anything.
         </div>
       )}
 
