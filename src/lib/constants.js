@@ -66,13 +66,84 @@ export const PALETTES = {
 export const LANGUAGES = [
   { code: "auto", label: "Auto-detect" },
   { code: "English", label: "English" },
-  { code: "Swahili", label: "Kiswahili" },
+  // West Africa
+  { code: "Twi", label: "Twi (Akan)" },
   { code: "Hausa", label: "Hausa" },
+  { code: "Ewe", label: "Eʋegbe (Ewe)" },
   { code: "Yoruba", label: "Yorùbá" },
   { code: "Igbo", label: "Igbo" },
+  { code: "Fulfulde", label: "Fulfulde (Fulani)" },
+  // East & Southern Africa
+  { code: "Swahili", label: "Kiswahili" },
+  { code: "Somali", label: "Soomaali (Somali)" },
   { code: "Amharic", label: "አማርኛ (Amharic)" },
-  { code: "French", label: "Français" },
-  { code: "Arabic", label: "العربية (Arabic)" },
-  { code: "Portuguese", label: "Português" },
   { code: "Zulu", label: "isiZulu" },
+  // The Americas & Europe
+  { code: "French", label: "Français" },
+  { code: "Spanish", label: "Español" },
+  { code: "Portuguese", label: "Português" },
+  { code: "German", label: "Deutsch" },
+  { code: "Italian", label: "Italiano" },
+  { code: "Dutch", label: "Nederlands" },
+  { code: "Polish", label: "Polski" },
+  // Asia-Pacific
+  { code: "Arabic", label: "العربية (Arabic)" },
+  { code: "Persian", label: "فارسی (Persian)" },
+  { code: "Urdu", label: "اردو (Urdu)" },
+  { code: "Hindi", label: "हिन्दी (Hindi)" },
+  { code: "Bengali", label: "বাংলা (Bengali)" },
+  { code: "Chinese", label: "中文 (Chinese)" },
+  { code: "Japanese", label: "日本語 (Japanese)" },
+  { code: "Korean", label: "한국어 (Korean)" },
+  { code: "Vietnamese", label: "Tiếng Việt" },
+  { code: "Filipino", label: "Filipino (Tagalog)" },
+  { code: "Indonesian", label: "Bahasa Indonesia" },
+  { code: "Malay", label: "Bahasa Melayu" },
+  { code: "Thai", label: "ไทย (Thai)" },
+  { code: "Russian", label: "Русский (Russian)" },
+  { code: "Turkish", label: "Türkçe (Turkish)" },
 ];
+
+// BCP-47 locale codes used for voice input (speech-to-text) and
+// read-aloud (text-to-speech). Only browsers with a matching voice pack
+// installed will recognise/speak a given language — anything else
+// gracefully falls back to the device default.
+export const SPEECH_LOCALES = {
+  English: "en-US",
+  Twi: "tw-GH",
+  Hausa: "ha-GH",
+  Ewe: "ee-GH",
+  Yoruba: "yo-NG",
+  Igbo: "ig-NG",
+  Fulfulde: "ff-GN",
+  Swahili: "sw-KE",
+  Somali: "so-SO",
+  Amharic: "am-ET",
+  Zulu: "zu-ZA",
+  French: "fr-FR",
+  Spanish: "es-ES",
+  Portuguese: "pt-BR",
+  German: "de-DE",
+  Italian: "it-IT",
+  Dutch: "nl-NL",
+  Polish: "pl-PL",
+  Arabic: "ar-SA",
+  Persian: "fa-IR",
+  Urdu: "ur-PK",
+  Hindi: "hi-IN",
+  Bengali: "bn-BD",
+  Chinese: "zh-CN",
+  Japanese: "ja-JP",
+  Korean: "ko-KR",
+  Vietnamese: "vi-VN",
+  Filipino: "fil-PH",
+  Indonesian: "id-ID",
+  Malay: "ms-MY",
+  Thai: "th-TH",
+  Russian: "ru-RU",
+  Turkish: "tr-TR",
+};
+
+export function speechLocaleFor(language) {
+  return (language && language !== "auto" && SPEECH_LOCALES[language]) || "";
+}
