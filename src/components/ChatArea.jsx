@@ -18,7 +18,12 @@ export function ChatArea({ styles, messages, status, error, onRegenerate, onEdit
     <div ref={scrollRef} className="zp-chat" style={styles.chatArea}>
       {isEmpty && !error && (
         <div style={{ ...styles.bubble, ...styles.assistantBubble }}>
-          Hey{profileName ? ` ${profileName}` : ""}! I'm Zynora Prime — the intelligence with purpose. Ask me anything.
+          <div>
+            Hey{profileName ? ` ${profileName}` : ""}! I'm Zynora Prime — the intelligence with purpose. Ask me anything.
+          </div>
+          <div style={{ marginTop: 8, fontSize: 12.5, color: styles.palette.textMuted }}>
+            Tip: tap the 📎 clip to ask about a photo or document, or the mic to speak instead of typing.
+          </div>
         </div>
       )}
 
