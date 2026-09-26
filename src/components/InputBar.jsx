@@ -1,5 +1,6 @@
-import { useRef, useEffect } from "react";
-import { AlertTriangle, FileText, Paperclip, ArrowUp } from "lucide-react";
+import { useRef, useEffect, useState } from "react";
+import { AlertTriangle, FileText, Paperclip, ArrowUp, Mic, Square } from "lucide-react";
+import { speechLocaleFor } from "../lib/constants";
 
 export function InputBar({
   styles,
@@ -7,6 +8,7 @@ export function InputBar({
   setInput,
   status,
   onSend,
+  replyLanguage,
   pendingAttachment,
   onRemoveAttachment,
   onFileSelected,
@@ -15,6 +17,53 @@ export function InputBar({
 }) {
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+  const recognitionRef = useRef(null);
+
+  // Voice dictation via the browser's built-in SpeechRecognition API.
+  // Hidden entirely on browsers that don't support it (Safari pre-14.1,
+  // Firefox desktop) — no broken button shown.
+  const [voiceSupported] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+  );
+  const [listening, setListening] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      // Never leave the mic recording if the bar unmounts mid-session.
+      try { recognitionRef.current?.stop(); } catch {}
+    };
+  }, []);
+
+  function toggleVoice() {
+    if (listening) {
+      try { recognitionRef.current?.stop(); } catch {}
+      return;
+    }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    const rec = new SR();
+    const locale = speechLocaleFor(replyLanguage);
+    if (locale) rec.lang = locale; // no locale set → device default
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.onresult = (e) => {
+      let transcript = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) transcript += e.results[i][0].transcript;
+      }
+      transcript = transcript.trim();
+      if (transcript) {
+        setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
+      }
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recognitionRef.current = rec;
+    rec.start();
+    setListening(true);
+  }
 
   // Auto-grow the textarea as the user types a longer message, capped
   // at ~5 lines so it can't take over the screen.
@@ -101,10 +150,27 @@ export function InputBar({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Message Zynora Prime..."
+          placeholder={listening ? "Listening… speak now" : "Message Zynora Prime..."}
           rows={1}
           style={styles.textarea}
         />
+        {voiceSupported && (
+          <button
+            style={{
+              ...styles.attachButton,
+              ...(listening ? { boxShadow: `0 0 0 2px ${styles.palette.accent}` } : {}),
+            }}
+            onClick={toggleVoice}
+            aria-label={listening ? "Stop dictation" : "Dictate a message"}
+            title={listening ? "Stop dictation" : "Dictate a message"}
+          >
+            {listening ? (
+              <Square size={15} color={styles.palette.accent} />
+            ) : (
+              <Mic size={17} color={styles.palette.textMuted} />
+            )}
+          </button>
+        )}
         <button
           style={{
             ...styles.sendButton,
