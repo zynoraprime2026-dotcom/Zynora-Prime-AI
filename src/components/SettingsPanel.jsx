@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { X, Moon, Sun, Download, MessageSquare, Trash2 } from "lucide-react";
-import { LANGUAGES } from "../lib/constants";
+import { LANGUAGES, usageSummary, DAILY_FREE_MESSAGE_LIMIT } from "../lib/constants";
 
 // Slide-in panel from the right with sections: account, install,
 // theme, data saver, reply language, profile name, export/share,
@@ -31,8 +31,15 @@ export function SettingsPanel({
   isIOS,
   canInstall,
   onInstallClick,
+  onUpgrade,
 }) {
   const [confirmingClear, setConfirmingClear] = useState(false);
+  // Recomputed each time the panel opens, so the numbers are never stale.
+  const [usage, setUsage] = useState({ todayCount: 0, weekCount: 0, remaining: null });
+
+  useEffect(() => {
+    if (open) setUsage(usageSummary());
+  }, [open]);
 
   // Reset the confirm step whenever the panel closes, so it doesn't
   // stay armed the next time it's opened.
@@ -206,6 +213,27 @@ export function SettingsPanel({
               <MessageSquare size={14} /> Share via WhatsApp
             </button>
           </div>
+        </div>
+
+        {/* Usage & upgrade */}
+        <div style={styles.panelSection}>
+          <div style={styles.panelLabel}>Usage</div>
+          <div style={{ fontSize: 12.5, color: styles.palette.textMuted, marginBottom: 6 }}>
+            Today: {usage.todayCount} message{usage.todayCount === 1 ? "" : "s"}
+            {" · "}Last 7 days: {usage.weekCount}
+            {usage.remaining !== null &&
+              ` · ${usage.remaining} free ${usage.remaining === 1 ? "message" : "messages"} left today`}
+          </div>
+          {onUpgrade && (
+            <button style={styles.secondaryButton} onClick={onUpgrade}>
+              <MessageSquare size={14} /> Subscribe via Mobile Money
+            </button>
+          )}
+          {usage.remaining !== null && usage.remaining === 0 && (
+            <div style={{ fontSize: 12, color: styles.palette.errorText, marginTop: 6 }}>
+              Today's free messages are used up.
+            </div>
+          )}
         </div>
 
         {/* Feedback */}
