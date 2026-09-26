@@ -22,10 +22,37 @@
 
 const SOURCES_MARKER = "\n\n\u241FZYNORA_SOURCES\u241F";
 
+// Supabase (public anon key — safe to be in client code, RLS protects data).
+// Used to verify the caller's session when strict auth is enabled.
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../src/lib/constants.js";
+
+async function tokenIsValid(token) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;
+  }
+
+  // Auth: guests are allowed by default. Set REQUIRE_CHAT_AUTH=true in
+  // Vercel to require a valid signed-in session before using the AI quota.
+  if (process.env.REQUIRE_CHAT_AUTH === "true") {
+    const authHeader = req.headers["authorization"] || "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!token || !(await tokenIsValid(token))) {
+      res.status(401).json({ error: "Please sign in to use Zynora Prime." });
+      return;
+    }
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
