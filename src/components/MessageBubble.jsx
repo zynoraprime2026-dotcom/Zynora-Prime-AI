@@ -1,12 +1,59 @@
-import { useState } from "react";
-import { FileText, Check, Copy, Pencil, RotateCcw } from "lucide-react";
+import { useState, useEffect } from "react";
+import { FileText, Check, Copy, Pencil, RotateCcw, Volume2, Square } from "lucide-react";
 import { renderMarkdown } from "../lib/markdown.jsx";
+import { speechLocaleFor } from "../lib/constants";
 
-export function MessageBubble({ styles, role, content, streaming, attachmentName, isImage, imageData, imageMimeType, sources, onRegenerate, onEdit, disabled, dataSaver }) {
+export function MessageBubble({ styles, role, content, streaming, attachmentName, isImage, imageData, imageMimeType, sources, onRegenerate, onEdit, disabled, dataSaver, replyLanguage }) {
   const [hovered, setHovered] = useState(false);
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(content);
+  const [speaking, setSpeaking] = useState(false);
+
+  const ttsSupported =
+    typeof window !== "undefined" && "speechSynthesis" in window;
+
+  // If this bubble unmounts while reading aloud, stop the audio.
+  useEffect(() => {
+    return () => {
+      if (ttsSupported) window.speechSynthesis.cancel();
+    };
+  }, [ttsSupported]);
+
+  // Markdown stripped down to something natural to listen to — code
+  // blocks and links would be read out as literal symbols otherwise.
+  function speakableText(md) {
+    return md
+      .replace(/```[\s\S]*?```/g, " code block. ")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
+      .replace(/[*_~#>|]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function toggleReadAloud() {
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    // Only one message reads at a time — starting a new one stops the old.
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(speakableText(content));
+    const locale = speechLocaleFor(replyLanguage);
+    if (locale) {
+      utterance.lang = locale;
+      const match = window.speechSynthesis
+        .getVoices()
+        .find((v) => v.lang && v.lang.toLowerCase().startsWith(locale.slice(0, 2)));
+      if (match) utterance.voice = match;
+    }
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    setSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  }
 
   async function handleCopy() {
     try {
@@ -145,6 +192,21 @@ export function MessageBubble({ styles, role, content, streaming, attachmentName
               <Copy size={13} color={styles.palette.textMuted} />
             )}
           </button>
+
+          {ttsSupported && (
+            <button
+              onClick={toggleReadAloud}
+              style={styles.actionButton}
+              aria-label={speaking ? "Stop reading aloud" : "Read message aloud"}
+              title={speaking ? "Stop" : "Listen"}
+            >
+              {speaking ? (
+                <Square size={13} color={styles.palette.accent} />
+              ) : (
+                <Volume2 size={13} color={styles.palette.textMuted} />
+              )}
+            </button>
+          )}
 
           {onEdit && (
             <button
