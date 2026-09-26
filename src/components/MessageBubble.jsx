@@ -231,6 +231,21 @@ export function MessageBubble({ styles, role, content, streaming, attachmentName
               <RotateCcw size={13} color={styles.palette.textMuted} />
             </button>
           )}
+
+          {dataSaver && content && (
+            <span
+              title="Approximate size of this reply — Data Saver keeps these small"
+              style={{
+                fontSize: 10.5,
+                color: styles.palette.textMuted,
+                alignSelf: "center",
+                marginLeft: 2,
+                whiteSpace: "nowrap",
+              }}
+            >
+              ≈{(Math.max(content.length, 1) / 1024).toFixed(1)} KB
+            </span>
+          )}
         </div>
       )}
     </div>
