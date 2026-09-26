@@ -147,3 +147,56 @@ export const SPEECH_LOCALES = {
 export function speechLocaleFor(language) {
   return (language && language !== "auto" && SPEECH_LOCALES[language]) || "";
 }
+
+// ---------- Usage tracking (free tier + analytics) ----------
+// One message = one thing the person sent (voice notes included — they're
+// sent as text). Stored locally per calendar day so the counter survives
+// reloads. 0 disables the free limit entirely.
+export const USAGE_KEY = "zynora-prime:usage";
+export const DAILY_FREE_MESSAGE_LIMIT = 20;
+
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function readUsage() {
+  try {
+    return JSON.parse(localStorage.getItem(USAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writeUsage(usage) {
+  try {
+    localStorage.setItem(USAGE_KEY, JSON.stringify(usage));
+  } catch {
+    // Private mode / storage full — usage just won't persist.
+  }
+}
+
+// Adds one to today's count (and keeps the last 7 days of history).
+export function recordUsage() {
+  const usage = readUsage();
+  const today = todayKey();
+  usage.days = { ...(usage.days || {}), [today]: (usage.days?.[today] || 0) + 1 };
+  // Keep only the most recent 7 days so storage stays tiny.
+  const recent = Object.keys(usage.days)
+    .sort()
+    .slice(-7);
+  usage.days = Object.fromEntries(recent.map((d) => [d, usage.days[d]]));
+  writeUsage(usage);
+}
+
+export function usageSummary() {
+  const days = readUsage().days || {};
+  const today = todayKey();
+  const todayCount = days[today] || 0;
+  const weekCount = Object.values(days).reduce((a, b) => a + b, 0);
+  const remaining =
+    DAILY_FREE_MESSAGE_LIMIT > 0
+      ? Math.max(DAILY_FREE_MESSAGE_LIMIT - todayCount, 0)
+      : null; // null = no limit configured
+  return { todayCount, weekCount, remaining };
+}
