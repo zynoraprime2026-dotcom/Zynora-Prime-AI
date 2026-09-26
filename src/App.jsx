@@ -9,6 +9,9 @@ import {
   WHATSAPP_FEEDBACK_NUMBER,
   SESSION_KEY,
   PALETTES,
+  DAILY_FREE_MESSAGE_LIMIT,
+  recordUsage,
+  usageSummary,
 } from "./lib/constants";
 import {
   supabaseSignUp,
@@ -596,6 +599,20 @@ export default function ZynoraPrime() {
     const content = input.trim();
     if (!content && !pendingAttachment) return; // nothing to send
 
+    // Free-tier limit: after DAILY_FREE_MESSAGE_LIMIT messages in a day,
+    // hold the message and point to the Mobile Money upgrade path.
+    // Set the limit to 0 in constants.js to turn this off entirely.
+    if (DAILY_FREE_MESSAGE_LIMIT > 0) {
+      const { remaining } = usageSummary();
+      if (remaining <= 0) {
+        setError({
+          message: `You've used today's ${DAILY_FREE_MESSAGE_LIMIT} free messages. To keep chatting, subscribe via Mobile Money — open Settings → Usage.`,
+        });
+        return;
+      }
+    }
+    recordUsage();
+
     let userMessage = { role: "user", content };
     if (pendingAttachment) {
       userMessage = {
@@ -861,6 +878,14 @@ export default function ZynoraPrime() {
     URL.revokeObjectURL(url);
   }
 
+  // Opens WhatsApp with a pre-filled subscribe message — the Mobile
+  // Money upgrade path for the free tier. wa.me links need no API.
+  function handleUpgrade() {
+    const text =
+      "Hi! I'd like to subscribe to Zynora Prime and pay via Mobile Money. Please share the MoMo number and details.";
+    window.open(`https://wa.me/${WHATSAPP_FEEDBACK_NUMBER}?text=${encodeURIComponent(text)}`, "_blank");
+  }
+
   // Opens WhatsApp with a pre-filled feedback message to a fixed number.
   // wa.me links work with no API, no approval, no cost — just a URL.
   function handleWhatsAppFeedback() {
@@ -953,6 +978,7 @@ export default function ZynoraPrime() {
         onExportChat={handleExportChat}
         onShareChat={handleShareChat}
         onWhatsAppFeedback={handleWhatsAppFeedback}
+        onUpgrade={handleUpgrade}
         hasMessages={messages.length > 0}
         dataSaver={dataSaver}
         setDataSaver={setDataSaver}
