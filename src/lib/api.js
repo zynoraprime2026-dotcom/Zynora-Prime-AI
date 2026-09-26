@@ -1,3 +1,5 @@
+import { SESSION_KEY } from "./constants.js";
+
 // A message with an attached document keeps its display text (m.content)
 // separate from what's actually sent to the API — the API gets the full
 // document text prepended, but the chat bubble just shows a small chip
@@ -35,14 +37,29 @@ export function buildSystemPrompt(profileName, dataSaver, replyLanguage) {
   return prompt;
 }
 
+// Reads the signed-in session's access token (if any) so the server can
+// verify the caller when strict auth (REQUIRE_CHAT_AUTH) is enabled.
+// Guests simply send no Authorization header and stay in local mode.
+function sessionAccessToken() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw)?.accessToken || null;
+  } catch {
+    return null;
+  }
+}
+
 // Calls our own /api/chat serverless function rather than any AI
 // provider directly. The browser never holds an API key — that lives
-// only in Vercel's server-side environment variables. The function
-// itself decides which provider to actually call (currently Gemini's
-// free tier; see /api/chat.js). This isn't currently streaming — the
-// full reply comes back in one response — but the UI already handles
-// that gracefully via the same "single chunk" path used as a fallback
-// for browsers without streaming support.
+// only in Vercel's server-side environment variables.
+//
+// The function streams the reply back as plain text, chunk by chunk, so
+// replies appear token-by-token. Any real web-search citations arrive at
+// the very end, after SOURCES_MARKER — we detect and strip it so it can
+// never be shown as text, then hand the parsed sources to the UI.
+export const SOURCES_MARKER = "\u241FZYNORA_SOURCES\u241F";
+
 export async function streamClaudeAPI(
   history,
   profileName,
@@ -50,9 +67,14 @@ export async function streamClaudeAPI(
   replyLanguage,
   onDelta
 ) {
+  const token = sessionAccessToken();
+
   const response = await fetch("/api/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({
       messages: history.map((m) => ({
         role: m.role,
@@ -68,14 +90,75 @@ export async function streamClaudeAPI(
     }),
   });
 
-  const data = await response.json();
-
   if (!response.ok) {
-    throw new Error(data.error || "Request failed");
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || `Request failed (${response.status})`);
   }
 
-  onDelta(
-    data.text || "I didn't catch that — could you rephrase?",
-    data.sources
-  );
+  if (!response.body || !response.body.getReader) {
+    // Very old browsers without streaming support: take the whole body.
+    const text = await response.text();
+    const idx = text.indexOf(SOURCES_MARKER);
+    if (idx !== -1) {
+      onDelta(text.slice(0, idx), safeParseSources(text.slice(idx + SOURCES_MARKER.length)));
+    } else {
+      onDelta(text || "I didn't catch that — could you rephrase?", undefined);
+    }
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = "";    // not-yet-emitted text (marker may span chunk edges)
+  let sourcesRaw = ""; // everything after the marker, if it ever arrives
+  let inSources = false;
+
+  function emit(text) {
+    if (text) onDelta(text, undefined);
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    let chunk = decoder.decode(value, { stream: true });
+    if (inSources) {
+      sourcesRaw += chunk;
+      continue;
+    }
+    pending += chunk;
+
+    const idx = pending.indexOf(SOURCES_MARKER);
+    if (idx !== -1) {
+      emit(pending.slice(0, idx));
+      sourcesRaw = pending.slice(idx + SOURCES_MARKER.length);
+      pending = "";
+      inSources = true;
+    } else if (pending.length > SOURCES_MARKER.length) {
+      // Emit all but a tail that could still turn out to be the marker.
+      const safe = pending.length - SOURCES_MARKER.length;
+      emit(pending.slice(0, safe));
+      pending = pending.slice(safe);
+    }
+  }
+  pending += decoder.decode(); // flush any bytes the decoder held back
+
+  if (!inSources) {
+    // No marker arrived after all — the tail is just text.
+    emit(pending);
+  }
+
+  const sources = sourcesRaw ? safeParseSources(sourcesRaw) : null;
+  if (sources && sources.length > 0) {
+    onDelta("", sources);
+  }
+}
+
+function safeParseSources(raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
