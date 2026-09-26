@@ -3,7 +3,7 @@ import { MessageBubble } from "./MessageBubble.jsx";
 import { TypingIndicator } from "./TypingIndicator.jsx";
 import { ErrorBanner } from "./ErrorBanner.jsx";
 
-export function ChatArea({ styles, messages, status, error, onRegenerate, onEditMessage, onDismissError, profileName, dataSaver }) {
+export function ChatArea({ styles, messages, status, error, onRegenerate, onEditMessage, onDismissError, profileName, dataSaver, replyLanguage }) {
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -49,6 +49,7 @@ export function ChatArea({ styles, messages, status, error, onRegenerate, onEdit
             onEdit={m.role === "user" ? (newContent) => onEditMessage(i, newContent) : undefined}
             disabled={status !== "idle"}
             dataSaver={dataSaver}
+            replyLanguage={replyLanguage}
           />
         );
       })}
