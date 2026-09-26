@@ -914,6 +914,7 @@ export default function ZynoraPrime() {
         onDismissError={() => setError(null)}
         profileName={profileName}
         dataSaver={dataSaver}
+        replyLanguage={replyLanguage}
       />
       <InputBar
         styles={styles}
@@ -926,6 +927,7 @@ export default function ZynoraPrime() {
         onFileSelected={handleFileSelected}
         attachError={attachError}
         onDismissAttachError={() => setAttachError(null)}
+        replyLanguage={replyLanguage}
       />
       <Sidebar
         styles={styles}
