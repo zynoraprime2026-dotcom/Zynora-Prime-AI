@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { FileText, Check, Copy, Pencil, RotateCcw, Volume2, Square } from "lucide-react";
 import { renderMarkdown } from "../lib/markdown.jsx";
 import { speechLocaleFor } from "../lib/constants";
+import { speakableText, speakText, stopSpeaking } from "../lib/voice";
 
 export function MessageBubble({ styles, role, content, streaming, attachmentName, isImage, imageData, imageMimeType, sources, onRegenerate, onEdit, disabled, dataSaver, replyLanguage }) {
   const [hovered, setHovered] = useState(false);
@@ -16,43 +17,20 @@ export function MessageBubble({ styles, role, content, streaming, attachmentName
   // If this bubble unmounts while reading aloud, stop the audio.
   useEffect(() => {
     return () => {
-      if (ttsSupported) window.speechSynthesis.cancel();
+      if (ttsSupported) stopSpeaking();
     };
   }, [ttsSupported]);
 
-  // Markdown stripped down to something natural to listen to — code
-  // blocks and links would be read out as literal symbols otherwise.
-  function speakableText(md) {
-    return md
-      .replace(/```[\s\S]*?```/g, " code block. ")
-      .replace(/`([^`]+)`/g, "$1")
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
-      .replace(/[*_~#>|]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
   function toggleReadAloud() {
     if (speaking) {
-      window.speechSynthesis.cancel();
+      stopSpeaking();
       setSpeaking(false);
       return;
     }
-    // Only one message reads at a time — starting a new one stops the old.
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(speakableText(content));
-    const locale = speechLocaleFor(replyLanguage);
-    if (locale) {
-      utterance.lang = locale;
-      const match = window.speechSynthesis
-        .getVoices()
-        .find((v) => v.lang && v.lang.toLowerCase().startsWith(locale.slice(0, 2)));
-      if (match) utterance.voice = match;
-    }
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
+    // speakText cancels anything already playing — only one message
+    // reads at a time.
     setSpeaking(true);
-    window.speechSynthesis.speak(utterance);
+    speakText(content, speechLocaleFor(replyLanguage)).then(() => setSpeaking(false));
   }
 
   async function handleCopy() {
