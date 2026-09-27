@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from "react";
-import { AlertTriangle, FileText, Paperclip, ArrowUp, Mic, Square } from "lucide-react";
+import { AlertTriangle, FileText, Paperclip, ArrowUp, Mic, Square, AudioLines } from "lucide-react";
 import { speechLocaleFor } from "../lib/constants";
 
 export function InputBar({
@@ -14,10 +14,15 @@ export function InputBar({
   onFileSelected,
   attachError,
   onDismissAttachError,
+  talkMode,
+  talkListen,
+  onToggleTalkMode,
+  onTalkTranscript,
 }) {
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const recognitionRef = useRef(null);
+  const micModeRef = useRef("manual"); // "manual" (dictation) or "talk" (Talk Mode)
 
   // Voice dictation via the browser's built-in SpeechRecognition API.
   // Hidden entirely on browsers that don't support it (Safari pre-14.1,
@@ -36,11 +41,7 @@ export function InputBar({
     };
   }, []);
 
-  function toggleVoice() {
-    if (listening) {
-      try { recognitionRef.current?.stop(); } catch {}
-      return;
-    }
+  function startRecognition(mode) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return;
     const rec = new SR();
@@ -54,16 +55,48 @@ export function InputBar({
         if (e.results[i].isFinal) transcript += e.results[i][0].transcript;
       }
       transcript = transcript.trim();
-      if (transcript) {
+      if (!transcript) return;
+      if (micModeRef.current === "talk") {
+        // Talk Mode: the sentence is the message — send it hands-free.
+        onTalkTranscript?.(transcript);
+      } else {
+        // Manual dictation: spoken words land in the text box to edit.
         setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
       }
     };
     rec.onend = () => setListening(false);
     rec.onerror = () => setListening(false);
+    micModeRef.current = mode;
     recognitionRef.current = rec;
     rec.start();
     setListening(true);
   }
+
+  function stopRecognition() {
+    try { recognitionRef.current?.stop(); } catch {}
+    setListening(false);
+  }
+
+  function toggleVoice() {
+    if (listening) {
+      stopRecognition();
+      return;
+    }
+    startRecognition("manual");
+  }
+
+  // Talk Mode drives the mic from App: it listens while the assistant is
+  // idle, pauses while a reply streams in, and waits for read-aloud to
+  // finish before reopening the mic (recognition would otherwise hear
+  // the app's own voice).
+  useEffect(() => {
+    if (talkListen && !listening) {
+      startRecognition("talk");
+    } else if (!talkListen && listening && micModeRef.current === "talk") {
+      stopRecognition();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [talkListen]);
 
   // Auto-grow the textarea as the user types a longer message, capped
   // at ~5 lines so it can't take over the screen.
@@ -155,21 +188,37 @@ export function InputBar({
           style={styles.textarea}
         />
         {voiceSupported && (
-          <button
-            style={{
-              ...styles.attachButton,
-              ...(listening ? { boxShadow: `0 0 0 2px ${styles.palette.accent}` } : {}),
-            }}
-            onClick={toggleVoice}
-            aria-label={listening ? "Stop dictation" : "Dictate a message"}
-            title={listening ? "Stop dictation" : "Dictate a message"}
-          >
-            {listening ? (
-              <Square size={15} color={styles.palette.accent} />
-            ) : (
-              <Mic size={17} color={styles.palette.textMuted} />
-            )}
-          </button>
+          <>
+            <button
+              style={{
+                ...styles.attachButton,
+                ...(talkMode ? { boxShadow: `0 0 0 2px ${styles.palette.accent}` } : {}),
+              }}
+              onClick={() => onToggleTalkMode?.()}
+              aria-label={talkMode ? "Turn off Talk Mode" : "Turn on Talk Mode"}
+              title={talkMode ? "Talk Mode on — tap to turn off" : "Talk Mode — speak hands-free"}
+            >
+              <AudioLines
+                size={17}
+                color={talkMode ? styles.palette.accent : styles.palette.textMuted}
+              />
+            </button>
+            <button
+              style={{
+                ...styles.attachButton,
+                ...(listening && !talkMode ? { boxShadow: `0 0 0 2px ${styles.palette.accent}` } : {}),
+              }}
+              onClick={toggleVoice}
+              aria-label={listening ? "Stop dictation" : "Dictate a message"}
+              title={listening ? "Stop dictation" : "Dictate a message"}
+            >
+              {listening && !talkMode ? (
+                <Square size={15} color={styles.palette.accent} />
+              ) : (
+                <Mic size={17} color={styles.palette.textMuted} />
+              )}
+            </button>
+          </>
         )}
         <button
           style={{
