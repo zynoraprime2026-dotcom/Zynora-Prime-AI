@@ -4,8 +4,14 @@ import { renderMarkdown } from "../lib/markdown.jsx";
 import { speechLocaleFor } from "../lib/constants";
 import { speakableText, speakText, stopSpeaking } from "../lib/voice";
 
+// Arabic-script detection for RTL rendering. dir="auto" picks the
+// direction per message, but Arabic script reads better with slightly
+// larger text and looser line height (Naskh glyphs sit low and connect).
+const RTL_RE = /[\u0600-\u06FF\u0750-\u077F]/;
+
 export function MessageBubble({ styles, role, content, streaming, attachmentName, isImage, imageData, imageMimeType, sources, onRegenerate, onEdit, disabled, dataSaver, replyLanguage }) {
   const [hovered, setHovered] = useState(false);
+  const isRTL = RTL_RE.test(content);
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(content);
@@ -86,6 +92,7 @@ export function MessageBubble({ styles, role, content, streaming, attachmentName
         <div style={{ ...styles.bubble, ...styles.userBubble, maxWidth: "100%", padding: 0 }}>
           <textarea
             autoFocus
+            dir="auto"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={handleEditKeyDown}
@@ -103,10 +110,12 @@ export function MessageBubble({ styles, role, content, streaming, attachmentName
         </div>
       ) : (
         <div
+          dir="auto"
           style={{
             ...styles.bubble,
             maxWidth: "100%",
             ...(role === "user" ? styles.userBubble : styles.assistantBubble),
+            ...(isRTL ? { fontSize: 15.5, lineHeight: 1.85 } : {}),
           }}
         >
           {/* User messages are shown as plain text (they typed it, no need
