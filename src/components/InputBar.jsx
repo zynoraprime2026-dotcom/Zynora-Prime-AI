@@ -180,6 +180,7 @@ export function InputBar({
         </button>
         <textarea
           ref={textareaRef}
+          dir="auto"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
