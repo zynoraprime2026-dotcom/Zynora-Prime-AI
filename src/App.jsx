@@ -988,6 +988,7 @@ export default function ZynoraPrime() {
         profileName={profileName}
         dataSaver={dataSaver}
         replyLanguage={replyLanguage}
+        onSuggestion={(text) => sendMessage(text, null)}
       />
       <InputBar
         styles={styles}
