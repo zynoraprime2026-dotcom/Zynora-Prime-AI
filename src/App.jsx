@@ -12,6 +12,7 @@ import {
   DAILY_FREE_MESSAGE_LIMIT,
   recordUsage,
   usageSummary,
+  speechLocaleFor,
 } from "./lib/constants";
 import {
   supabaseSignUp,
@@ -25,6 +26,7 @@ import {
 } from "./lib/supabase";
 import { genConversationId, deriveTitle } from "./lib/utils";
 import { streamClaudeAPI } from "./lib/api";
+import { speakText, stopSpeaking } from "./lib/voice";
 import { getStyles } from "./lib/styles";
 
 import { Header } from "./components/Header.jsx";
@@ -87,6 +89,45 @@ export default function ZynoraPrime() {
   // "auto" (match whatever language the person writes in) or a fixed
   // language code the assistant should always reply in.
   const [replyLanguage, setReplyLanguage] = useState("auto");
+
+  // ---------- Talk Mode (hands-free voice conversation) ----------
+  // Mic listens while idle → the spoken sentence is sent automatically →
+  // the reply is read aloud → mic reopens. ttsSpeaking gates the mic so
+  // recognition never hears the app's own voice.
+  const [talkMode, setTalkMode] = useState(false);
+  const [ttsSpeaking, setTtsSpeaking] = useState(false);
+  const spokenReplyRef = useRef(true);
+
+  function toggleTalkMode() {
+    const next = !talkMode;
+    setTalkMode(next);
+    if (next) {
+      // Turning Talk Mode on shouldn't read out old chat history —
+      // only replies that arrive from now on.
+      spokenReplyRef.current = true;
+    } else {
+      stopSpeaking();
+      setTtsSpeaking(false);
+    }
+  }
+
+  // When a streamed reply completes, read it aloud (Talk Mode only).
+  useEffect(() => {
+    if (!talkMode || status !== "idle" || spokenReplyRef.current) return;
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== "assistant" || !last.content) return;
+    spokenReplyRef.current = true;
+    setTtsSpeaking(true);
+    speakText(last.content, speechLocaleFor(replyLanguage)).then(() => {
+      setTtsSpeaking(false);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, messages, talkMode]);
+
+  // Leaving the page must never leave a voice playing.
+  useEffect(() => {
+    return () => stopSpeaking();
+  }, []);
   // Tracks actual network connectivity so a send attempt while offline
   // can fail fast with a clear message instead of hanging on a timeout,
   // and so a reconnect can automatically retry the last failed request.
@@ -595,9 +636,10 @@ export default function ZynoraPrime() {
       });
   }
 
-  function handleSend() {
-    const content = input.trim();
-    if (!content && !pendingAttachment) return; // nothing to send
+  // Core send used by both the text box and Talk Mode. Returns false
+  // (without sending) if the message was empty or the free limit hit.
+  function sendMessage(content, attachment) {
+    if (!content && !attachment) return false;
 
     // Free-tier limit: after DAILY_FREE_MESSAGE_LIMIT messages in a day,
     // hold the message and point to the Mobile Money upgrade path.
@@ -608,24 +650,24 @@ export default function ZynoraPrime() {
         setError({
           message: `You've used today's ${DAILY_FREE_MESSAGE_LIMIT} free messages. To keep chatting, subscribe via Mobile Money — open Settings → Usage.`,
         });
-        return;
+        return false;
       }
     }
     recordUsage();
 
     let userMessage = { role: "user", content };
-    if (pendingAttachment) {
+    if (attachment) {
       userMessage = {
         role: "user",
-        content: content || (pendingAttachment.kind === "image" ? "What's in this image?" : "Please look at the attached document."),
-        attachmentName: pendingAttachment.name,
-        ...(pendingAttachment.kind === "image"
+        content: content || (attachment.kind === "image" ? "What's in this image?" : "Please look at the attached document."),
+        attachmentName: attachment.name,
+        ...(attachment.kind === "image"
           ? {
               isImage: true, // small, cheap to persist — the heavy imageData below is not
-              imageData: pendingAttachment.imageData,
-              imageMimeType: pendingAttachment.imageMimeType,
+              imageData: attachment.imageData,
+              imageMimeType: attachment.imageMimeType,
             }
-          : { attachmentText: pendingAttachment.text }),
+          : { attachmentText: attachment.text }),
       };
     }
 
@@ -634,8 +676,14 @@ export default function ZynoraPrime() {
     setMessages([...nextMessages, { role: "assistant", content: "", streaming: true }]);
     setInput("");
     setPendingAttachment(null);
+    spokenReplyRef.current = false; // Talk Mode: this reply isn't read yet
 
     runStream(nextMessages, placeholderIndex);
+    return true;
+  }
+
+  function handleSend() {
+    sendMessage(input.trim(), pendingAttachment);
   }
 
   // Reads a .txt/.md file directly, extracts text from a .docx via
@@ -953,6 +1001,10 @@ export default function ZynoraPrime() {
         attachError={attachError}
         onDismissAttachError={() => setAttachError(null)}
         replyLanguage={replyLanguage}
+        talkMode={talkMode}
+        talkListen={talkMode && status === "idle" && !ttsSpeaking}
+        onToggleTalkMode={toggleTalkMode}
+        onTalkTranscript={(text) => sendMessage(text, null)}
       />
       <Sidebar
         styles={styles}
